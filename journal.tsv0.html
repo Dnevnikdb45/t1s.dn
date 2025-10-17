@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Электронный журнал — 10-Б Алгебра (зачисление учеников)</title>
+  <title>Электронный журнал — 10-Б Алгебра (дубликаты дат, стиль заголовков)</title>
   <style>
     :root{
       --blue:#0b66ff; --orange:#ff8a00; --muted:#666; --bg:#f7f8fb; --card:#fff;
@@ -26,7 +26,6 @@
     .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     button.btn{border:1px solid #ddd;background:#fff;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:13px}
     button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
-    /* circular blue-outline enroll button */
     .enroll-btn{
       width:40px;height:40px;border-radius:50%;border:2px solid var(--blue);
       background:#fff;color:var(--blue); font-size:20px; display:inline-flex;align-items:center;justify-content:center;
@@ -44,10 +43,13 @@
     .journal-wrap{margin-top:12px;border-radius:6px;border:1px solid #eef3ff;background:linear-gradient(180deg,#fff,#fbfdff);padding:8px;overflow:auto}
     table.journal{border-collapse:collapse;width:100%;min-width:700px}
     table.journal th, table.journal td{border:1px solid #eef2fb;padding:6px 8px;text-align:center;vertical-align:middle;height:var(--cell-height)}
-    table.journal th:first-child, table.journal td:first-child{text-align:left;padding-left:12px; min-width:200px}
+    table.journal th:first-child, table.journal td:first-child{text-align:left;padding-left:12px; min-width:220px}
     table.journal th{background:#fbfdff;font-weight:700;position:sticky;top:0;z-index:2}
-    .date-header{display:flex;gap:6px;align-items:center;justify-content:center}
-    .date-remove{background:transparent;border:0;color:#999;font-weight:700;cursor:pointer}
+    .date-header{display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center;padding:6px 2px}
+    .date-top{color:var(--blue);font-weight:700;font-size:13px}
+    .date-top.today{border:1px solid var(--blue);padding:2px 6px;border-radius:6px}
+    .date-bottom{color:var(--muted);font-size:12px}
+    .date-remove{background:transparent;border:0;color:#999;font-weight:700;cursor:pointer;margin-left:6px}
     .cell{min-width:56px;height:var(--cell-height);padding:6px}
     .cell[contenteditable="true"]{outline:none;cursor:text;user-select:text}
     .student-actions{display:flex;gap:6px;justify-content:flex-end}
@@ -115,8 +117,6 @@
       <div class="controls">
         <button id="toggleEditBtn" class="btn">Редактировать</button>
         <button id="saveBtn" class="btn primary">Сохранить</button>
-
-        <!-- Enroll button: blue outlined circle with "+" -->
         <button id="enrollBtn" class="enroll-btn" title="Зачислить в класс ученика">+</button>
       </div>
     </header>
@@ -187,7 +187,7 @@
 
   <script>
     // Storage and defaults
-    const STORAGE_KEY = "electronic_journal_Dnevnikdb45_v3";
+    const STORAGE_KEY = "electronic_journal_DatesObjects_v1";
 
     function uid(){ return 'id-'+Math.random().toString(36).slice(2,9) }
     function todayISO(){ return new Date().toISOString().slice(0,10) }
@@ -196,11 +196,11 @@
 
     function generateDefaultDates(){
       const out=[]; const now=new Date(); const year=now.getFullYear(), month=now.getMonth();
-      for(let i=1;i<=7;i++){ const dt=new Date(year, month, i); out.push(dt.toISOString().slice(0,10)); }
+      for(let i=1;i<=7;i++){ const dt=new Date(year, month, i); out.push({ id: uid(), date: dt.toISOString().slice(0,10), label: "" }); }
       return out;
     }
 
-    // default list (38 students as requested)
+    // default list (sample students)
     const defaultData = {
       title: "10-Б Алгебра",
       year: "2025/2026 учебный год",
@@ -258,11 +258,74 @@
         const raw = localStorage.getItem(STORAGE_KEY);
         if(!raw) return structuredClone(defaultData);
         const parsed = JSON.parse(raw);
-        if(!Array.isArray(parsed.dates)) parsed.dates = defaultData.dates;
-        if(!Array.isArray(parsed.students)) parsed.students = defaultData.students;
-        return parsed;
-      }catch(e){ console.warn(e); return structuredClone(defaultData); }
+
+        // Normalize dates to array of objects with {id, date, label}
+        let newDates = [];
+        if(Array.isArray(parsed.dates) && parsed.dates.length>0){
+          if(typeof parsed.dates[0] === "string"){
+            // old format: array of date strings -> convert, preserve order
+            newDates = parsed.dates.map(dstr => ({ id: uid(), date: dstr, label: "" }));
+          } else {
+            // assume objects; ensure id exists
+            newDates = parsed.dates.map(d => {
+              return { id: d.id || uid(), date: d.date || "", label: (d.label || "") };
+            });
+          }
+        } else {
+          newDates = defaultData.dates;
+        }
+
+        // Build mapping from date-string -> list of ids (first occurrence used for old marks)
+        const dateToIds = {};
+        newDates.forEach(dt => {
+          if(!dateToIds[dt.date]) dateToIds[dt.date] = [];
+          dateToIds[dt.date].push(dt.id);
+        });
+
+        // Normalize students and convert their marks:
+        const students = Array.isArray(parsed.students) ? parsed.students : defaultData.students;
+        const newStudents = students.map(s => {
+          const marks = {};
+          if(s.marks && typeof s.marks === "object"){
+            // s.marks keys may be old date strings or newer ids
+            Object.entries(s.marks).forEach(([k,v])=>{
+              // if k matches a date id already in newDates -> keep as is
+              const existsId = newDates.find(d => d.id === k);
+              if(existsId){
+                marks[k] = v;
+                return;
+              }
+              // if k matches date string -> map to first id (preserve value)
+              if(dateToIds[k] && dateToIds[k].length>0){
+                marks[dateToIds[k][0]] = v;
+                return;
+              }
+              // otherwise ignore unknown key
+            });
+          }
+          return { id: s.id || uid(), name: s.name || "Без имени", code: s.code, marks };
+        });
+
+        // Merge other top-level fields
+        const out = {
+          title: parsed.title || defaultData.title,
+          year: parsed.year || defaultData.year,
+          status: parsed.status || defaultData.status,
+          organization: parsed.organization || defaultData.organization,
+          orgLink: parsed.orgLink || defaultData.orgLink,
+          classType: parsed.classType || defaultData.classType,
+          license: parsed.license || defaultData.license,
+          notes: parsed.notes || defaultData.notes,
+          dates: newDates,
+          students: newStudents
+        };
+        return out;
+      }catch(e){
+        console.warn("load error", e);
+        return structuredClone(defaultData);
+      }
     }
+
     function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
     let state = loadData();
@@ -310,7 +373,7 @@
     const fieldLicense = document.getElementById("fieldLicense");
     const fieldNotes = document.getElementById("fieldNotes");
 
-    // render header & editor
+    // Rendering header/editor
     function renderHeader(){
       classTitleEl.textContent = state.title;
       schoolYearEl.textContent = state.year;
@@ -386,21 +449,39 @@
       }
     }
 
-    // table rendering
+    // Render table with date objects (duplicates allowed)
     function renderTable(){
       journalTable.innerHTML = "";
       const thead = document.createElement("thead");
       const trHead = document.createElement("tr");
       const thName = document.createElement("th"); thName.textContent = "Ученик"; trHead.appendChild(thName);
 
-      state.dates.forEach(d => {
+      state.dates.forEach(dateObj => {
         const th = document.createElement("th");
-        th.title = formatFullDate(d);
+        th.title = formatFullDate(dateObj.date);
         const div = document.createElement("div"); div.className = "date-header";
-        const span = document.createElement("span"); span.textContent = formatHeaderDate(d);
-        const btn = document.createElement("button"); btn.className = "date-remove"; btn.title = "Удалить дату"; btn.innerHTML = "✕";
-        btn.addEventListener("click", ()=> removeDate(d));
-        div.appendChild(span); div.appendChild(btn); th.appendChild(div);
+        const spanTop = document.createElement("div");
+        spanTop.className = "date-top";
+        // add "сегодня" indicator visually if the date equals today
+        if(dateObj.date === todayISO()){
+          spanTop.classList.add("today");
+        }
+        spanTop.textContent = formatHeaderDate(dateObj.date);
+        const spanBottom = document.createElement("div");
+        spanBottom.className = "date-bottom";
+        spanBottom.textContent = dateObj.label ? dateObj.label : "—";
+        // small remove button
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "date-remove";
+        removeBtn.title = "Удалить эту колонку даты";
+        removeBtn.innerHTML = "✕";
+        removeBtn.addEventListener("click", (e)=>{ removeDateById(dateObj.id); e.stopPropagation(); });
+        // build header content
+        div.appendChild(spanTop);
+        div.appendChild(spanBottom);
+        // place remove button to the right inside th
+        th.appendChild(div);
+        th.appendChild(removeBtn);
         trHead.appendChild(th);
       });
 
@@ -411,15 +492,14 @@
       state.students.forEach(student => {
         const tr = document.createElement("tr");
         const tdName = document.createElement("td");
-        // show code if present: "Код — ФИО"
         tdName.textContent = student.code ? `${student.code} — ${student.name}` : student.name;
         tr.appendChild(tdName);
 
-        state.dates.forEach(d=>{
+        state.dates.forEach(dateObj=>{
           const td = document.createElement("td");
           td.className = "cell";
           td.contentEditable = true;
-          const current = student.marks && student.marks[d] ? student.marks[d] : "";
+          const current = student.marks && student.marks[dateObj.id] ? student.marks[dateObj.id] : "";
           td.textContent = current;
           applyStyleToCell(td);
 
@@ -434,18 +514,18 @@
             }
             applyStyleToCell(td);
             if(!student.marks) student.marks = {};
-            if(val === "") delete student.marks[d];
-            else student.marks[d] = td.textContent.trim();
+            if(val === "") delete student.marks[dateObj.id];
+            else student.marks[dateObj.id] = td.textContent.trim();
             saveData();
           });
           td.addEventListener("dblclick", ()=>{
             td.textContent = "";
             applyStyleToCell(td);
-            if(student.marks) delete student.marks[d];
+            if(student.marks) delete student.marks[dateObj.id];
             saveData();
           });
           td.addEventListener("click", (e)=> {
-            openPopoverForCell(td, student, d, e);
+            openPopoverForCell(td, student, dateObj.id, e);
           });
 
           tr.appendChild(td);
@@ -470,21 +550,29 @@
       journalTable.appendChild(tbody);
     }
 
-    // mutations
-    function addDate(dateISO){
+    // Mutations: allow duplicate dates (no uniqueness check)
+    function addDate(dateISO, label){
       if(!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) return;
-      if(state.dates.includes(dateISO)) return;
-      state.dates.push(dateISO); state.dates.sort();
+      const newDateObj = { id: uid(), date: dateISO, label: label || "" };
+      state.dates.push(newDateObj);
+      // keep order as appended (user asked to allow duplicates)
       saveData(); renderTable();
     }
-    function removeDate(dateISO){
-      if(!confirm("Удалить дату " + formatFullDate(dateISO) + " из журнала?")) return;
-      state.dates = state.dates.filter(d=>d!==dateISO);
-      state.students.forEach(s=>{ if(s.marks) delete s.marks[dateISO]; });
+    function removeDateById(dateId){
+      if(!confirm("Удалить эту дату из журнала?")) return;
+      state.dates = state.dates.filter(d=>d.id !== dateId);
+      state.students.forEach(s=>{ if(s.marks) delete s.marks[dateId]; });
       saveData(); renderTable();
     }
+
+    function addRange(fromISO, toISO, label){
+      const dFrom = new Date(fromISO), dTo = new Date(toISO);
+      for(let d=new Date(dFrom); d<=dTo; d.setDate(d.getDate()+1)){
+        addDate(d.toISOString().slice(0,10), label);
+      }
+    }
+
     function addStudentObj(studentObj){
-      // ensure code uniqueness if provided
       if(studentObj.code){
         const exists = state.students.some(s=> s.code && s.code === studentObj.code);
         if(exists) return { ok:false, message: "Ученик с таким кодом уже есть." };
@@ -503,7 +591,7 @@
       saveData(); renderTable();
     }
 
-    // popover for quick selection
+    // popover for quick selection (works with dateId)
     let popoverEl = null;
     function createPopover(){
       const p = document.createElement("div");
@@ -520,7 +608,7 @@
       const sep = document.createElement("div"); sep.style.width="8px"; p.appendChild(sep);
       const pbtn = document.createElement("button"); pbtn.className="pop-btn att"; pbtn.dataset.val="P"; pbtn.textContent="П"; pbtn.title="Присутствие"; pbtn.addEventListener("click", ()=> setPopoverValue(p, "P"));
       const nbtn = document.createElement("button"); nbtn.className="pop-btn att"; nbtn.dataset.val="N"; nbtn.textContent="Н"; nbtn.title="Неявка"; nbtn.addEventListener("click", ()=> setPopoverValue(p, "N"));
-      const bbtn = document.createElement("button"); bbtn.className="pop-btn att"; bbtn.dataset.val="B"; bbtn.textContent="Б"; bbtn.title = "Болен"; bbtn.addEventListener("click", ()=> setPopoverValue(p, "B"));
+      const bbtn = document.createElement("button"); bbtn.className="pop-btn att"; bbtn.dataset.val="B"; bbtn.textContent="Б"; bbtn.title="Болен"; bbtn.addEventListener("click", ()=> setPopoverValue(p, "B"));
       p.appendChild(pbtn); p.appendChild(nbtn); p.appendChild(bbtn);
       const clear = document.createElement("button"); clear.className="pop-btn clear"; clear.textContent="Очистить"; clear.addEventListener("click", ()=> setPopoverValue(p, ""));
       p.appendChild(clear);
@@ -529,16 +617,15 @@
     }
 
     let activeCell = null;
-    function openPopoverForCell(td, student, dateKey, clickEvent){
+    function openPopoverForCell(td, student, dateId, clickEvent){
       closePopover();
       popoverEl = createPopover();
       const rect = td.getBoundingClientRect();
-      // prefer to position to the right, but if there's no space, position above
       const rightPos = rect.right + 8 + window.scrollX;
       const topPos = rect.top + window.scrollY;
       popoverEl.style.left = rightPos + "px";
       popoverEl.style.top = topPos + "px";
-      activeCell = { td, student, dateKey };
+      activeCell = { td, student, dateId };
       setTimeout(()=> { window.addEventListener("click", windowClickClose); }, 0);
     }
     function windowClickClose(e){
@@ -555,7 +642,7 @@
     }
     function setPopoverValue(popEl, val){
       if(!activeCell) return;
-      const {td, student, dateKey} = activeCell;
+      const {td, student, dateId} = activeCell;
       let finalVal = val;
       if(val === "P") finalVal = "П";
       if(val === "N") finalVal = "Н";
@@ -563,14 +650,14 @@
       td.textContent = finalVal;
       applyStyleToCell(td);
       if(!student.marks) student.marks = {};
-      if(finalVal === "") delete student.marks[dateKey];
-      else student.marks[dateKey] = finalVal;
+      if(finalVal === "") delete student.marks[dateId];
+      else student.marks[dateId] = finalVal;
       saveData();
       closePopover();
       td.focus();
     }
 
-    // enroll modal functions
+    // Enroll modal functions
     function openEnrollModal(){
       enrollError.style.display = "none"; enrollError.textContent = "";
       studentCodeInput.value = "";
@@ -591,7 +678,6 @@
         studentNameInput.focus();
         return;
       }
-      // check duplicate code if provided
       if(code){
         const exists = state.students.some(s=> s.code && s.code.toLowerCase() === code.toLowerCase());
         if(exists){
@@ -609,13 +695,10 @@
         return;
       }
       closeEnrollModal();
-      // scroll to bottom to show student (small delay for render)
-      setTimeout(()=> {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
-      }, 150);
+      setTimeout(()=> { window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); }, 150);
     }
 
-    // handlers & init
+    // Handlers & initialization
     toggleEditBtn.addEventListener("click", ()=>{
       const shown = editorEl.style.display === "block";
       editorEl.style.display = shown ? "none" : "block";
@@ -640,16 +723,18 @@
     enrollCancel.addEventListener("click", closeEnrollModal);
     enrollSubmit.addEventListener("click", submitEnroll);
     enrollBackdrop.addEventListener("click", (e)=> { if(e.target === enrollBackdrop) closeEnrollModal(); });
-    // ESC closes modal
     window.addEventListener("keydown", (e)=> { if(e.key === "Escape") { closePopover(); closeEnrollModal(); } });
 
-    // date controls
+    // Date controls: allow duplicates — prompt for label when adding
     addDateBtn.addEventListener("click", ()=>{
       addDateInput.value = todayISO(); addDateInput.style.display = "inline-block"; addDateInput.focus();
     });
     addDateInput.addEventListener("change", ()=>{
       const val = addDateInput.value;
-      if(val){ addDate(val); }
+      if(val){
+        const label = prompt("Метка для даты (например: ОТБ, УР). Оставьте пустым для дефолтной.", "");
+        addDate(val, label || "");
+      }
       addDateInput.style.display = "none";
     });
     addDateInput.addEventListener("blur", ()=> addDateInput.style.display = "none");
@@ -660,10 +745,8 @@
       const from = rangeFrom.value, to = rangeTo.value;
       if(!from || !to){ alert("Выберите обе даты."); return; }
       if(from > to){ alert("Дата с должна быть раньше даты по."); return; }
-      const dFrom = new Date(from), dTo = new Date(to);
-      for(let d=new Date(dFrom); d<=dTo; d.setDate(d.getDate()+1)){
-        addDate(d.toISOString().slice(0,10));
-      }
+      const label = prompt("Метка для всех добавляемых дат (например: ОТБ, УР). Оставьте пустым для дефолтной.", "");
+      addRange(from, to, label || "");
       rangeInputs.style.display = "none";
     });
 
