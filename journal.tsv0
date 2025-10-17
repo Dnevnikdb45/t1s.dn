@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Электронный журнал — 10-Б Алгебра (зачисление учеников)</title>
+  <style>
+    :root{
+      --blue:#0b66ff; --orange:#ff8a00; --muted:#666; --bg:#f7f8fb; --card:#fff;
+      --red-from:#ffbebe; --red-to:#ff5a5a;
+      --orange-from:#ffe7c9; --orange-to:#ff9900;
+      --green-from:#e9ffec; --green-to:#2ecc71;
+      --cell-height:38px;
+    }
+    *{box-sizing:border-box}
+    body{
+      font-family:Inter, Roboto, Arial, sans-serif;
+      background:var(--bg); margin:0; color:#111; padding:18px;
+    }
+    .container{max-width:1200px;margin:0 auto;background:var(--card);border-radius:8px;padding:16px;
+      box-shadow:0 8px 22px rgba(10,18,40,0.06);}
+    .header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+    .left{display:flex;flex-direction:column;gap:6px}
+    .class-title{color:var(--blue);font-weight:700;font-size:20px;text-decoration:none}
+    .school-year{color:var(--orange);font-weight:700;font-size:13px}
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    button.btn{border:1px solid #ddd;background:#fff;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:13px}
+    button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+    /* circular blue-outline enroll button */
+    .enroll-btn{
+      width:40px;height:40px;border-radius:50%;border:2px solid var(--blue);
+      background:#fff;color:var(--blue); font-size:20px; display:inline-flex;align-items:center;justify-content:center;
+      cursor:pointer; padding:0;
+    }
+    .enroll-btn:hover{background:rgba(11,102,255,0.06)}
+    .info-row{display:grid;grid-template-columns:120px 1fr 120px 1fr;gap:8px 16px;align-items:center;padding:8px 0;border-top:1px solid #f2f5fb;margin-top:8px}
+    .label{color:var(--muted);font-size:13px}
+    .value{font-weight:600;font-size:14px}
+    a.link{color:var(--blue);text-decoration:none}
+    .editor{margin-top:10px;padding:10px;border-radius:6px;border:1px solid #eef2f8;background:#fff;display:none}
+    .editor .row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+    .editor label{font-size:13px;color:#333;min-width:120px}
+    .editor input[type="text"], .editor input[type="url"], .editor select {padding:8px;border-radius:6px;border:1px solid #dfe7f2;font-size:14px;width:100%}
+    .journal-wrap{margin-top:12px;border-radius:6px;border:1px solid #eef3ff;background:linear-gradient(180deg,#fff,#fbfdff);padding:8px;overflow:auto}
+    table.journal{border-collapse:collapse;width:100%;min-width:700px}
+    table.journal th, table.journal td{border:1px solid #eef2fb;padding:6px 8px;text-align:center;vertical-align:middle;height:var(--cell-height)}
+    table.journal th:first-child, table.journal td:first-child{text-align:left;padding-left:12px; min-width:200px}
+    table.journal th{background:#fbfdff;font-weight:700;position:sticky;top:0;z-index:2}
+    .date-header{display:flex;gap:6px;align-items:center;justify-content:center}
+    .date-remove{background:transparent;border:0;color:#999;font-weight:700;cursor:pointer}
+    .cell{min-width:56px;height:var(--cell-height);padding:6px}
+    .cell[contenteditable="true"]{outline:none;cursor:text;user-select:text}
+    .student-actions{display:flex;gap:6px;justify-content:flex-end}
+    .small{font-size:12px;padding:4px 8px;border-radius:6px}
+    .danger{background:#fff;border:1px solid #f5d6d6;color:#c0392b}
+    .success{background:#fff;border:1px solid #dff3e4;color:var(--green-to)}
+    .toolbar{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
+    .muted{color:var(--muted);font-size:13px}
+    .legend{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+    .legend-item{display:flex;gap:6px;align-items:center;font-size:13px}
+    .badge-legend{width:36px;height:24px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px}
+    /* gradients for marks (applied to cells) */
+    .mark-red{background:linear-gradient(180deg,var(--red-from),var(--red-to)); color:#fff; box-shadow:inset 0 -2px 0 rgba(0,0,0,0.06)}
+    .mark-orange{background:linear-gradient(180deg,var(--orange-from),var(--orange-to)); color:#fff; box-shadow:inset 0 -2px 0 rgba(0,0,0,0.06)}
+    .mark-green{background:linear-gradient(180deg,var(--green-from),var(--green-to)); color:#fff; box-shadow:inset 0 -2px 0 rgba(0,0,0,0.06)}
+    .mark-neutral{background:linear-gradient(180deg,#f7f8fd,#eef6ff); color:#0b66ff}
+    .cell.marked{font-weight:700; color:#fff; border:1px solid rgba(0,0,0,0.06)}
+    .popover{
+      position:absolute; z-index:9999; background:#fff; border:1px solid #e6eefc; padding:8px; border-radius:8px;
+      box-shadow:0 6px 18px rgba(10,20,40,0.08); display:flex; gap:6px; align-items:center;
+    }
+    .pop-btn{padding:6px 8px;border-radius:6px;border:0;cursor:pointer;font-weight:700}
+    .pop-btn.grade{width:34px;height:34px;border-radius:6px}
+    .pop-btn.att{padding:6px 10px}
+    .pop-btn.clear{background:#fff;border:1px solid #ddd}
+    .pop-btn[data-val="1"], .pop-btn[data-val="2"]{background:linear-gradient(180deg,var(--red-from),var(--red-to)); color:#fff}
+    .pop-btn[data-val="3"]{background:linear-gradient(180deg,var(--orange-from),var(--orange-to)); color:#fff}
+    .pop-btn[data-val="4"], .pop-btn[data-val="5"]{background:linear-gradient(180deg,var(--green-from),var(--green-to)); color:#fff}
+    .pop-btn[data-val="P"]{background:linear-gradient(180deg,var(--green-from),var(--green-to)); color:#fff}
+    .pop-btn[data-val="N"]{background:linear-gradient(180deg,var(--red-from),var(--red-to)); color:#fff}
+    .pop-btn[data-val="B"]{background:linear-gradient(180deg,var(--orange-from),var(--orange-to)); color:#fff}
+    .note-small{font-size:12px;color:var(--muted)}
+    /* modal (enroll form) */
+    .modal-backdrop{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(10,10,20,0.35);display:none;align-items:center;justify-content:center;z-index:10000}
+    .modal{background:#fff;padding:18px;border-radius:10px;min-width:320px;max-width:420px;box-shadow:0 12px 30px rgba(10,20,40,0.12)}
+    .modal h3{margin:0 0 8px 0}
+    .form-row{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+    .form-row label{font-size:13px;color:#333}
+    .form-row input[type="text"]{padding:10px;border-radius:8px;border:1px solid #dfe7f2;font-size:14px}
+    .modal-actions{display:flex;gap:8px;justify-content:flex-end}
+    .btn-muted{background:#fff;border:1px solid #ddd;padding:8px 10px;border-radius:8px;cursor:pointer}
+    @media(max-width:900px){
+      .info-row{grid-template-columns:1fr}
+      .header{flex-direction:column;align-items:flex-start}
+      table.journal th:first-child, table.journal td:first-child{min-width:150px}
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <div class="left">
+        <a id="classTitle" class="class-title" href="#" target="_blank">10-Б Алгебра</a>
+        <div id="schoolYear" class="school-year">2025/2026 учебный год</div>
+        <div class="info-row" style="margin-top:6px">
+          <div class="label">Статус:</div><div id="status" class="value">Активный</div>
+          <div class="label">Организация:</div><div id="organization" class="value"><a id="orgLink" class="link" href="#">ФИЛИАЛ ФОКС КЛАБ</a></div>
+        </div>
+        <div class="info-row">
+          <div class="label">Тип Класса:</div><div id="classType" class="value">Мини-класс</div>
+          <div class="label">Лицензия:</div><div id="license" class="value"><a id="licenseLink" class="link" href="#">771-AOA0AL-010-A88</a></div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="toggleEditBtn" class="btn">Редактировать</button>
+        <button id="saveBtn" class="btn primary">Сохранить</button>
+
+        <!-- Enroll button: blue outlined circle with "+" -->
+        <button id="enrollBtn" class="enroll-btn" title="Зачислить в класс ученика">+</button>
+      </div>
+    </header>
+
+    <section id="editor" class="editor" aria-hidden="true">
+      <div class="row"><label>Название класса</label><input id="fieldTitle" type="text" value="10-Б Алгебра"></div>
+      <div class="row"><label>Учебный год</label><input id="fieldYear" type="text" value="2025/2026 учебный год"></div>
+      <div class="row"><label>Статус</label>
+        <select id="fieldStatus"><option>Активный</option><option>Неактивный</option><option>Архив</option></select>
+      </div>
+      <div class="row"><label>Организация</label><input id="fieldOrg" type="text" value="ФИЛИАЛ ФОКС КЛАБ"></div>
+      <div class="row"><label>Ссылка организации</label><input id="fieldOrgLink" type="url" value="#"></div>
+      <div class="row"><label>Тип класса</label><input id="fieldClassType" type="text" value="Мини-класс"></div>
+      <div class="row"><label>Лицензия</label><input id="fieldLicense" type="text" value="771-AOA0AL-010-A88"></div>
+      <div class="row"><label>Заметки</label><input id="fieldNotes" type="text" value="—"></div>
+    </section>
+
+    <section class="journal-wrap" aria-label="Журнал">
+      <div class="toolbar">
+        <button id="addDateBtn" class="btn small">Добавить дату</button>
+        <input id="addDateInput" type="date" style="display:none">
+        <button id="addRangeBtn" class="btn small">Добавить диапазон дат</button>
+        <div id="rangeInputs" style="display:none">
+          <input id="rangeFrom" type="date"> — <input id="rangeTo" type="date">
+          <button id="rangeApply" class="btn small">Применить</button>
+          <button id="rangeCancel" class="btn small">Отмена</button>
+        </div>
+
+        <button id="clearMarksBtn" class="btn small">Очистить все отметки</button>
+
+        <div style="flex:1"></div>
+        <div class="muted">Клик по ячейке — редактировать. Двойной клик — очистить. Быстрое меню появляется по клику.</div>
+      </div>
+
+      <div class="legend" aria-hidden="false">
+        <div class="legend-item"><span class="badge-legend mark-red">1-2</span> — низкая оценка / пропуск</div>
+        <div class="legend-item"><span class="badge-legend mark-orange">3 / Б</span> — среднее / болезнь</div>
+        <div class="legend-item"><span class="badge-legend mark-green">4-5 / П</span> — хорошие оценки / присутствие</div>
+        <div class="legend-item note-small">Посещаемость: П (присутствовал), Н (неявка), Б (болен). Текст белый, фон — градиент.</div>
+      </div>
+
+      <table id="journalTable" class="journal" role="table" aria-label="Таблица оценок">
+        <!-- Generated by JS -->
+      </table>
+    </section>
+
+    <!-- Enroll modal -->
+    <div id="enrollModalBackdrop" class="modal-backdrop" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="enrollTitle">
+        <h3 id="enrollTitle">Зачислить ученика в класс</h3>
+        <div class="form-row">
+          <label for="studentCode">Код ученика</label>
+          <input id="studentCode" type="text" placeholder="Например: 2025-001">
+        </div>
+        <div class="form-row">
+          <label for="studentName">ФИО</label>
+          <input id="studentName" type="text" placeholder="Фамилия И.О.">
+        </div>
+        <div id="enrollError" class="note-small" style="color:#c0392b;display:none"></div>
+        <div class="modal-actions">
+          <button id="enrollCancel" class="btn-muted">Отмена</button>
+          <button id="enrollSubmit" class="btn primary">Зачислить</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // Storage and defaults
+    const STORAGE_KEY = "electronic_journal_Dnevnikdb45_v3";
+
+    function uid(){ return 'id-'+Math.random().toString(36).slice(2,9) }
+    function todayISO(){ return new Date().toISOString().slice(0,10) }
+    function formatHeaderDate(d){ const p=d.split("-"); return p.length===3? p[2]+"."+p[1] : d }
+    function formatFullDate(d){ const p=d.split("-"); return p.length===3? p[2]+"."+p[1]+"."+p[0] : d }
+
+    function generateDefaultDates(){
+      const out=[]; const now=new Date(); const year=now.getFullYear(), month=now.getMonth();
+      for(let i=1;i<=7;i++){ const dt=new Date(year, month, i); out.push(dt.toISOString().slice(0,10)); }
+      return out;
+    }
+
+    // default list (38 students as requested)
+    const defaultData = {
+      title: "10-Б Алгебра",
+      year: "2025/2026 учебный год",
+      status: "Активный",
+      organization: "ФИЛИАЛ ФОКС КЛАБ",
+      orgLink: "#",
+      classType: "Мини-класс",
+      license: "771-AOA0AL-010-A88",
+      notes: "—",
+      dates: generateDefaultDates(),
+      students: [
+        { id: uid(), name: "Иванов И.", marks: {} },
+        { id: uid(), name: "Петров П.", marks: {} },
+        { id: uid(), name: "Сидорова А.", marks: {} },
+        { id: uid(), name: "Смирнов С.", marks: {} },
+        { id: uid(), name: "Кузнецова К.", marks: {} },
+        { id: uid(), name: "Попов П.", marks: {} },
+        { id: uid(), name: "Васильева В.", marks: {} },
+        { id: uid(), name: "Михайлов М.", marks: {} },
+        { id: uid(), name: "Новикова Н.", marks: {} },
+        { id: uid(), name: "Федоров Ф.", marks: {} },
+        { id: uid(), name: "Морозова М.", marks: {} },
+        { id: uid(), name: "Волков В.", marks: {} },
+        { id: uid(), name: "Алексеев А.", marks: {} },
+        { id: uid(), name: "Лебедев Л.", marks: {} },
+        { id: uid(), name: "Семенова С.", marks: {} },
+        { id: uid(), name: "Егоров Е.", marks: {} },
+        { id: uid(), name: "Павлова П.", marks: {} },
+        { id: uid(), name: "Козлов К.", marks: {} },
+        { id: uid(), name: "Степанова С.", marks: {} },
+        { id: uid(), name: "Николаев Н.", marks: {} },
+        { id: uid(), name: "Орлова О.", marks: {} },
+        { id: uid(), name: "Макаров М.", marks: {} },
+        { id: uid(), name: "Захарова З.", marks: {} },
+        { id: uid(), name: "Григорьев Г.", marks: {} },
+        { id: uid(), name: "Романова Р.", marks: {} },
+        { id: uid(), name: "Власов В.", marks: {} },
+        { id: uid(), name: "Куликова К.", marks: {} },
+        { id: uid(), name: "Мартынов М.", marks: {} },
+        { id: uid(), name: "Белякова Б.", marks: {} },
+        { id: uid(), name: "Никитин Н.", marks: {} },
+        { id: uid(), name: "Гусева Г.", marks: {} },
+        { id: uid(), name: "Савельев С.", marks: {} },
+        { id: uid(), name: "Денисова Д.", marks: {} },
+        { id: uid(), name: "Медведев М.", marks: {} },
+        { id: uid(), name: "Миронова М.", marks: {} },
+        { id: uid(), name: "Рябов Р.", marks: {} },
+        { id: uid(), name: "Ермакова Е.", marks: {} },
+        { id: uid(), name: "Татаринова Т.", marks: {} }
+      ]
+    };
+
+    function loadData(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return structuredClone(defaultData);
+        const parsed = JSON.parse(raw);
+        if(!Array.isArray(parsed.dates)) parsed.dates = defaultData.dates;
+        if(!Array.isArray(parsed.students)) parsed.students = defaultData.students;
+        return parsed;
+      }catch(e){ console.warn(e); return structuredClone(defaultData); }
+    }
+    function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+    let state = loadData();
+
+    // DOM refs
+    const classTitleEl = document.getElementById("classTitle");
+    const schoolYearEl = document.getElementById("schoolYear");
+    const statusEl = document.getElementById("status");
+    const organizationEl = document.getElementById("organization");
+    const orgLinkEl = document.getElementById("orgLink");
+    const classTypeEl = document.getElementById("classType");
+    const licenseEl = document.getElementById("license");
+    const toggleEditBtn = document.getElementById("toggleEditBtn");
+    const editorEl = document.getElementById("editor");
+    const saveBtn = document.getElementById("saveBtn");
+    const enrollBtn = document.getElementById("enrollBtn");
+
+    const addDateBtn = document.getElementById("addDateBtn");
+    const addDateInput = document.getElementById("addDateInput");
+    const addRangeBtn = document.getElementById("addRangeBtn");
+    const rangeInputs = document.getElementById("rangeInputs");
+    const rangeFrom = document.getElementById("rangeFrom");
+    const rangeTo = document.getElementById("rangeTo");
+    const rangeApply = document.getElementById("rangeApply");
+    const rangeCancel = document.getElementById("rangeCancel");
+    const clearMarksBtn = document.getElementById("clearMarksBtn");
+
+    const journalTable = document.getElementById("journalTable");
+
+    // enroll modal refs
+    const enrollBackdrop = document.getElementById("enrollModalBackdrop");
+    const enrollCancel = document.getElementById("enrollCancel");
+    const enrollSubmit = document.getElementById("enrollSubmit");
+    const studentCodeInput = document.getElementById("studentCode");
+    const studentNameInput = document.getElementById("studentName");
+    const enrollError = document.getElementById("enrollError");
+
+    // editor fields
+    const fieldTitle = document.getElementById("fieldTitle");
+    const fieldYear = document.getElementById("fieldYear");
+    const fieldStatus = document.getElementById("fieldStatus");
+    const fieldOrg = document.getElementById("fieldOrg");
+    const fieldOrgLink = document.getElementById("fieldOrgLink");
+    const fieldClassType = document.getElementById("fieldClassType");
+    const fieldLicense = document.getElementById("fieldLicense");
+    const fieldNotes = document.getElementById("fieldNotes");
+
+    // render header & editor
+    function renderHeader(){
+      classTitleEl.textContent = state.title;
+      schoolYearEl.textContent = state.year;
+      statusEl.textContent = state.status;
+      organizationEl.textContent = state.organization;
+      orgLinkEl.textContent = state.organization;
+      orgLinkEl.href = state.orgLink || "#";
+      classTypeEl.textContent = state.classType || "";
+      licenseEl.textContent = state.license || "";
+      licenseEl.href = state.licenseLink || "#";
+    }
+    function renderEditor(){
+      fieldTitle.value = state.title || "";
+      fieldYear.value = state.year || "";
+      fieldStatus.value = state.status || "Активный";
+      fieldOrg.value = state.organization || "";
+      fieldOrgLink.value = state.orgLink || "";
+      fieldClassType.value = state.classType || "";
+      fieldLicense.value = state.license || "";
+      fieldNotes.value = state.notes || "";
+    }
+
+    // value normalization & classification
+    function normalizeValue(raw){
+      if(raw === null || raw === undefined) return "";
+      return String(raw).trim();
+    }
+    function classifyValue(v){
+      if(!v) return {type:"none", key:""};
+      const up = v.toUpperCase().replace(/\s+/g,"");
+      const presentKeys = ["П","P","+","PR","PRIS","ПР","PRESENT","ПРИС","PRISUT","PRISUT"];
+      const absentKeys = ["Н","N","-","A","ABSENT","НЕЯВКА"];
+      const sickKeys = ["Б","B","БОЛ","SICK","БОЛЕН","БОЛ"];
+      if(presentKeys.includes(up)) return {type:"att", key:"П"};
+      if(absentKeys.includes(up)) return {type:"att", key:"Н"};
+      if(sickKeys.includes(up) || up.startsWith("Б")) return {type:"att", key:"Б"};
+      if(["1","2","3","4","5"].includes(up)) return {type:"grade", key:up};
+      const num = parseInt(up,10);
+      if(!isNaN(num) && num>=1 && num<=5) return {type:"grade", key:String(num)};
+      return {type:"other", key: v};
+    }
+
+    function applyStyleToCell(td){
+      td.classList.remove("mark-red","mark-orange","mark-green","mark-neutral","marked");
+      const raw = normalizeValue(td.textContent);
+      const cls = classifyValue(raw);
+      if(cls.type === "grade"){
+        if(cls.key === "1" || cls.key === "2"){
+          td.classList.add("mark-red","marked");
+          td.textContent = cls.key;
+        } else if(cls.key === "3"){
+          td.classList.add("mark-orange","marked");
+          td.textContent = cls.key;
+        } else if(cls.key === "4" || cls.key === "5"){
+          td.classList.add("mark-green","marked");
+          td.textContent = cls.key;
+        }
+      } else if(cls.type === "att"){
+        if(cls.key === "П"){
+          td.classList.add("mark-green","marked");
+          td.textContent = "П";
+        } else if(cls.key === "Н"){
+          td.classList.add("mark-red","marked");
+          td.textContent = "Н";
+        } else if(cls.key === "Б"){
+          td.classList.add("mark-orange","marked");
+          td.textContent = "Б";
+        }
+      } else if(cls.type === "other"){
+        if(raw !== ""){
+          td.classList.add("mark-neutral","marked");
+        }
+      }
+    }
+
+    // table rendering
+    function renderTable(){
+      journalTable.innerHTML = "";
+      const thead = document.createElement("thead");
+      const trHead = document.createElement("tr");
+      const thName = document.createElement("th"); thName.textContent = "Ученик"; trHead.appendChild(thName);
+
+      state.dates.forEach(d => {
+        const th = document.createElement("th");
+        th.title = formatFullDate(d);
+        const div = document.createElement("div"); div.className = "date-header";
+        const span = document.createElement("span"); span.textContent = formatHeaderDate(d);
+        const btn = document.createElement("button"); btn.className = "date-remove"; btn.title = "Удалить дату"; btn.innerHTML = "✕";
+        btn.addEventListener("click", ()=> removeDate(d));
+        div.appendChild(span); div.appendChild(btn); th.appendChild(div);
+        trHead.appendChild(th);
+      });
+
+      const thActions = document.createElement("th"); thActions.textContent = "Действия"; trHead.appendChild(thActions);
+      thead.appendChild(trHead); journalTable.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      state.students.forEach(student => {
+        const tr = document.createElement("tr");
+        const tdName = document.createElement("td");
+        // show code if present: "Код — ФИО"
+        tdName.textContent = student.code ? `${student.code} — ${student.name}` : student.name;
+        tr.appendChild(tdName);
+
+        state.dates.forEach(d=>{
+          const td = document.createElement("td");
+          td.className = "cell";
+          td.contentEditable = true;
+          const current = student.marks && student.marks[d] ? student.marks[d] : "";
+          td.textContent = current;
+          applyStyleToCell(td);
+
+          td.addEventListener("input", ()=> {
+            if(td.textContent.length <= 3) applyStyleToCell(td);
+          });
+          td.addEventListener("blur", ()=>{
+            const val = td.textContent.trim();
+            const cls = classifyValue(val);
+            if(cls.type==="att" || cls.type==="grade"){
+              td.textContent = cls.key;
+            }
+            applyStyleToCell(td);
+            if(!student.marks) student.marks = {};
+            if(val === "") delete student.marks[d];
+            else student.marks[d] = td.textContent.trim();
+            saveData();
+          });
+          td.addEventListener("dblclick", ()=>{
+            td.textContent = "";
+            applyStyleToCell(td);
+            if(student.marks) delete student.marks[d];
+            saveData();
+          });
+          td.addEventListener("click", (e)=> {
+            openPopoverForCell(td, student, d, e);
+          });
+
+          tr.appendChild(td);
+        });
+
+        const tdActions = document.createElement("td");
+        tdActions.className = "student-actions";
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn small danger";
+        delBtn.textContent = "Удалить";
+        delBtn.title = "Удалить ученика";
+        delBtn.addEventListener("click", ()=>{
+          if(confirm("Удалить ученика " + student.name + "?")){
+            removeStudent(student.id);
+          }
+        });
+        tdActions.appendChild(delBtn);
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+      });
+
+      journalTable.appendChild(tbody);
+    }
+
+    // mutations
+    function addDate(dateISO){
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) return;
+      if(state.dates.includes(dateISO)) return;
+      state.dates.push(dateISO); state.dates.sort();
+      saveData(); renderTable();
+    }
+    function removeDate(dateISO){
+      if(!confirm("Удалить дату " + formatFullDate(dateISO) + " из журнала?")) return;
+      state.dates = state.dates.filter(d=>d!==dateISO);
+      state.students.forEach(s=>{ if(s.marks) delete s.marks[dateISO]; });
+      saveData(); renderTable();
+    }
+    function addStudentObj(studentObj){
+      // ensure code uniqueness if provided
+      if(studentObj.code){
+        const exists = state.students.some(s=> s.code && s.code === studentObj.code);
+        if(exists) return { ok:false, message: "Ученик с таким кодом уже есть." };
+      }
+      state.students.push(studentObj);
+      saveData(); renderTable();
+      return { ok:true };
+    }
+    function removeStudent(id){
+      state.students = state.students.filter(s=>s.id!==id);
+      saveData(); renderTable();
+    }
+    function clearMarks(){
+      if(!confirm("Очистить все отметки для всех учеников?")) return;
+      state.students.forEach(s=> s.marks = {});
+      saveData(); renderTable();
+    }
+
+    // popover for quick selection
+    let popoverEl = null;
+    function createPopover(){
+      const p = document.createElement("div");
+      p.className = "popover";
+      for(let i=1;i<=5;i++){
+        const btn = document.createElement("button");
+        btn.className = "pop-btn grade";
+        btn.dataset.val = String(i);
+        btn.textContent = String(i);
+        btn.title = "Оценка " + i;
+        btn.addEventListener("click", ()=> { setPopoverValue(p, btn.dataset.val); });
+        p.appendChild(btn);
+      }
+      const sep = document.createElement("div"); sep.style.width="8px"; p.appendChild(sep);
+      const pbtn = document.createElement("button"); pbtn.className="pop-btn att"; pbtn.dataset.val="P"; pbtn.textContent="П"; pbtn.title="Присутствие"; pbtn.addEventListener("click", ()=> setPopoverValue(p, "P"));
+      const nbtn = document.createElement("button"); nbtn.className="pop-btn att"; nbtn.dataset.val="N"; nbtn.textContent="Н"; nbtn.title="Неявка"; nbtn.addEventListener("click", ()=> setPopoverValue(p, "N"));
+      const bbtn = document.createElement("button"); bbtn.className="pop-btn att"; bbtn.dataset.val="B"; bbtn.textContent="Б"; bbtn.title = "Болен"; bbtn.addEventListener("click", ()=> setPopoverValue(p, "B"));
+      p.appendChild(pbtn); p.appendChild(nbtn); p.appendChild(bbtn);
+      const clear = document.createElement("button"); clear.className="pop-btn clear"; clear.textContent="Очистить"; clear.addEventListener("click", ()=> setPopoverValue(p, ""));
+      p.appendChild(clear);
+      document.body.appendChild(p);
+      return p;
+    }
+
+    let activeCell = null;
+    function openPopoverForCell(td, student, dateKey, clickEvent){
+      closePopover();
+      popoverEl = createPopover();
+      const rect = td.getBoundingClientRect();
+      // prefer to position to the right, but if there's no space, position above
+      const rightPos = rect.right + 8 + window.scrollX;
+      const topPos = rect.top + window.scrollY;
+      popoverEl.style.left = rightPos + "px";
+      popoverEl.style.top = topPos + "px";
+      activeCell = { td, student, dateKey };
+      setTimeout(()=> { window.addEventListener("click", windowClickClose); }, 0);
+    }
+    function windowClickClose(e){
+      if(!popoverEl) return;
+      if(popoverEl.contains(e.target)) return;
+      closePopover();
+    }
+    function closePopover(){
+      if(popoverEl){
+        popoverEl.remove(); popoverEl = null;
+        window.removeEventListener("click", windowClickClose);
+        activeCell = null;
+      }
+    }
+    function setPopoverValue(popEl, val){
+      if(!activeCell) return;
+      const {td, student, dateKey} = activeCell;
+      let finalVal = val;
+      if(val === "P") finalVal = "П";
+      if(val === "N") finalVal = "Н";
+      if(val === "B") finalVal = "Б";
+      td.textContent = finalVal;
+      applyStyleToCell(td);
+      if(!student.marks) student.marks = {};
+      if(finalVal === "") delete student.marks[dateKey];
+      else student.marks[dateKey] = finalVal;
+      saveData();
+      closePopover();
+      td.focus();
+    }
+
+    // enroll modal functions
+    function openEnrollModal(){
+      enrollError.style.display = "none"; enrollError.textContent = "";
+      studentCodeInput.value = "";
+      studentNameInput.value = "";
+      enrollBackdrop.style.display = "flex"; enrollBackdrop.setAttribute("aria-hidden","false");
+      studentCodeInput.focus();
+    }
+    function closeEnrollModal(){
+      enrollBackdrop.style.display = "none"; enrollBackdrop.setAttribute("aria-hidden","true");
+      enrollError.style.display = "none"; enrollError.textContent = "";
+    }
+    function submitEnroll(){
+      const code = studentCodeInput.value.trim();
+      const name = studentNameInput.value.trim();
+      if(!name){
+        enrollError.style.display = "block";
+        enrollError.textContent = "Введите ФИО ученика.";
+        studentNameInput.focus();
+        return;
+      }
+      // check duplicate code if provided
+      if(code){
+        const exists = state.students.some(s=> s.code && s.code.toLowerCase() === code.toLowerCase());
+        if(exists){
+          enrollError.style.display = "block";
+          enrollError.textContent = "Ученик с таким кодом уже есть.";
+          studentCodeInput.focus();
+          return;
+        }
+      }
+      const newStudent = { id: uid(), code: code || undefined, name: name, marks: {} };
+      const res = addStudentObj(newStudent);
+      if(!res.ok){
+        enrollError.style.display = "block";
+        enrollError.textContent = res.message || "Ошибка добавления.";
+        return;
+      }
+      closeEnrollModal();
+      // scroll to bottom to show student (small delay for render)
+      setTimeout(()=> {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      }, 150);
+    }
+
+    // handlers & init
+    toggleEditBtn.addEventListener("click", ()=>{
+      const shown = editorEl.style.display === "block";
+      editorEl.style.display = shown ? "none" : "block";
+      if(!shown) renderEditor();
+      toggleEditBtn.textContent = shown ? "Редактировать" : "Скрыть редактор";
+    });
+
+    saveBtn.addEventListener("click", ()=>{
+      state.title = fieldTitle.value || state.title;
+      state.year = fieldYear.value || state.year;
+      state.status = fieldStatus.value;
+      state.organization = fieldOrg.value || state.organization;
+      state.orgLink = fieldOrgLink.value || state.orgLink;
+      state.classType = fieldClassType.value || state.classType;
+      state.license = fieldLicense.value || state.license;
+      state.notes = fieldNotes.value || state.notes;
+      saveData(); renderHeader(); renderEditor();
+      alert("Данные сохранены в localStorage.");
+    });
+
+    enrollBtn.addEventListener("click", openEnrollModal);
+    enrollCancel.addEventListener("click", closeEnrollModal);
+    enrollSubmit.addEventListener("click", submitEnroll);
+    enrollBackdrop.addEventListener("click", (e)=> { if(e.target === enrollBackdrop) closeEnrollModal(); });
+    // ESC closes modal
+    window.addEventListener("keydown", (e)=> { if(e.key === "Escape") { closePopover(); closeEnrollModal(); } });
+
+    // date controls
+    addDateBtn.addEventListener("click", ()=>{
+      addDateInput.value = todayISO(); addDateInput.style.display = "inline-block"; addDateInput.focus();
+    });
+    addDateInput.addEventListener("change", ()=>{
+      const val = addDateInput.value;
+      if(val){ addDate(val); }
+      addDateInput.style.display = "none";
+    });
+    addDateInput.addEventListener("blur", ()=> addDateInput.style.display = "none");
+
+    addRangeBtn.addEventListener("click", ()=> { rangeInputs.style.display = "inline-flex"; rangeFrom.value = todayISO(); rangeTo.value = todayISO(); });
+    rangeCancel.addEventListener("click", ()=> rangeInputs.style.display = "none");
+    rangeApply.addEventListener("click", ()=>{
+      const from = rangeFrom.value, to = rangeTo.value;
+      if(!from || !to){ alert("Выберите обе даты."); return; }
+      if(from > to){ alert("Дата с должна быть раньше даты по."); return; }
+      const dFrom = new Date(from), dTo = new Date(to);
+      for(let d=new Date(dFrom); d<=dTo; d.setDate(d.getDate()+1)){
+        addDate(d.toISOString().slice(0,10));
+      }
+      rangeInputs.style.display = "none";
+    });
+
+    clearMarksBtn.addEventListener("click", clearMarks);
+
+    // close popover on scroll/resize
+    window.addEventListener("scroll", ()=> closePopover());
+    window.addEventListener("resize", ()=> closePopover());
+
+    // storage cross-tab
+    window.addEventListener("storage", (e)=>{
+      if(e.key === STORAGE_KEY){
+        state = loadData();
+        renderAll();
+      }
+    });
+
+    function renderAll(){
+      renderHeader();
+      renderTable();
+    }
+
+    // initial render
+    renderAll();
+    window.addEventListener("beforeunload", ()=> saveData());
+  </script>
+</body>
+</html>
